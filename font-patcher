@@ -816,12 +816,9 @@ class font_patcher:
             font.appendSFNTName(str('English (US)'), str('Compatible Full'), font.fullname)
             font.appendSFNTName(str('English (US)'), str('SubFamily'), subFamily)
         else:
-            # Add Nerd Font suffix unless user specifically asked for some excplicit name via --name
-            if not user_supplied_name:
-                short_family = projectNameAbbreviation + variant_abbrev if self.args.makegroups >= 4 else projectNameSingular + variant_full
-                # inject_suffix(family, ps_fontname, short_family)
-                n.inject_suffix(verboseAdditionalFontNameSuffix, ps_suffix, short_family)
-            n.rename_font(font)
+            # FOR SARASA: final names are replaced below; upstream NameParser
+            # misclassifies Sarasa XLight as Light and emits a weight warning.
+            pass
 
         # FOR SARASA
         font.familyname = looseName
@@ -830,14 +827,18 @@ class font_patcher:
         font.fontname = f"{compactName}-{subFamily}"
         uniqueID = f"{font.fullname}; Sarasa v{self.sourceFont.version}"
 
-        font.appendSFNTName(str("English (US)"), str("UniqueID"), uniqueID)
-        font.appendSFNTName(str('English (US)'), str('Fullname'), font.fullname)
-
-        font.appendSFNTName(str('English (US)'), str('Family'), font.familyname)
-        font.appendSFNTName(str('English (US)'), str('SubFamily'), en_subfamily(subFamily))
-
-        font.appendSFNTName(str('English (US)'), str('Preferred Family'), font.familyname)
-        font.appendSFNTName(str('English (US)'), str('Preferred Styles'), en_subfamily(subFamily))
+        replace_sfnt_names(font, {
+            'Family': font.familyname,
+            'SubFamily': en_subfamily(subFamily),
+            'UniqueID': uniqueID,
+            'Fullname': font.fullname,
+            'PostScriptName': font.fontname,
+            'Compatible Full': font.fullname,
+            'Preferred Family': font.familyname,
+            'Preferred Styles': en_subfamily(subFamily),
+            'WWS Family': font.familyname,
+            'WWS Subfamily': en_subfamily(subFamily),
+        })
 
         font.comment = projectInfo
         font.fontlog = projectInfo
@@ -2447,6 +2448,17 @@ def main():
 
 def en_subfamily(compact):
     return compact.replace("Italic", " Italic").strip()
+
+def replace_sfnt_names(font, names):
+    sfnt_list = []
+    for language, key, value in list(font.sfnt_names):
+        if key not in names and language == 'English (US)':
+            sfnt_list.append((language, key, value))
+
+    for key, value in names.items():
+        sfnt_list.append(('English (US)', key, value))
+
+    font.sfnt_names = tuple(sfnt_list)
 
 # FOR SARASA: build hdmx table
 import sys
