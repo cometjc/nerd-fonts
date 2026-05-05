@@ -13,6 +13,14 @@ projectName = "Nerd Fonts"
 projectNameAbbreviation = "NF"
 projectNameSingular = projectName[:-1]
 
+# FOR SARASA
+projectName = "Nerds"
+projectNameAbbreviation = ""
+projectNameSingular = projectName[:-1]
+subFamily = ""
+looseName = "Sarasa Term TC Nerd"
+compactName = "SarasaTermTCNerd"
+
 import sys
 import re
 import os
@@ -194,7 +202,10 @@ def check_panose_monospaced(font):
         return -1 # invalid Panose info
     panose_mono = ((panose[0] == 2 and panose[3] == 9) or
                    (panose[0] == 3 and panose[3] == 3))
-    return 1 if panose_mono else 0
+
+    # FOR SARASA
+    return 1
+    # return 1 if panose_mono else 0
 
 def panose_check_to_text(value, panose = False):
     """ Convert value from check_panose_monospaced() to human readable string """
@@ -215,6 +226,10 @@ def panose_proportion_to_text(value):
 def is_monospaced(font):
     """ Check if a font is probably monospaced """
     # Some fonts lie (or have not any Panose flag set), spot check monospaced:
+
+    # FOR SARASA
+    return (True, None)
+
     width = -1
     width_mono = True
     for glyph in [ 0x49, 0x4D, 0x57, 0x61, 0x69, 0x6d, 0x2E ]: # wide and slim glyphs 'I', 'M', 'W', 'a', 'i', 'm', '.'
@@ -464,6 +479,12 @@ class font_patcher:
             outfile = os.path.normpath(os.path.join(
                 sanitize_filename(self.args.outputdir, True),
                 sanitize_filename(fontname) + self.args.extension))
+
+            # FOR SARASA
+            outfile = os.path.normpath(os.path.join(
+                sanitize_filename(self.args.outputdir, True),
+                f'{compactName}-{self.get_subfamily()}.ttf'
+            ))
             bitmaps = str()
             if len(sourceFont.bitmapSizes):
                 logger.debug("Preserving bitmaps %s", repr(sourceFont.bitmapSizes))
@@ -521,6 +542,10 @@ class font_patcher:
             logger.critical("Source font is a variable open type font (VF) and the patch results will most likely not be what you want")
         print(message)
 
+        # FOR SARASA: build hdmx table
+        print("Building hdmx table and fix post table")
+        post_fix(self.args.font, outfile)
+
         if self.args.postprocess:
             subprocess.call([self.args.postprocess, outfile])
             print("\n")
@@ -577,6 +602,10 @@ class font_patcher:
                 additionalFontNameSuffix += " B"
                 verboseAdditionalFontNameSuffix += " Plus Braille Icons"
 
+        # FOR SARASA: clean file name
+        additionalFontNameSuffix = "" + projectNameSingular
+        verboseAdditionalFontNameSuffix = "" + projectNameSingular
+
         # add mono signifier to beginning of name suffix
         if self.args.single:
             variant_abbrev = "M"
@@ -588,11 +617,19 @@ class font_patcher:
             variant_abbrev = ""
             variant_full = ""
 
+        # FOR SARASA: clean file name
+        variant_abbrev = ""
+        variant_full = ""
+
         ps_suffix = projectNameAbbreviation + variant_abbrev + additionalFontNameSuffix
 
         # add 'Nerd Font' to beginning of name suffix
         verboseAdditionalFontNameSuffix = " " + projectNameSingular + variant_full + verboseAdditionalFontNameSuffix
         additionalFontNameSuffix = " " + projectNameSingular + variant_full + additionalFontNameSuffix
+
+        # FOR SARASA: clean file name
+        additionalFontNameSuffix = "" + projectNameSingular
+        verboseAdditionalFontNameSuffix = "" + projectNameSingular
 
         if FontnameParserOK and self.args.makegroups > 0:
             user_supplied_name = False # User supplied names are kept unchanged
@@ -641,6 +678,10 @@ class font_patcher:
 
         # dont trust 'font.familyname'
         familyname = fontname
+
+        # FOR SARASA
+        familyname = looseName
+        fallbackStyle = self.get_subfamily()
 
         # fullname (filename) can always use long/verbose font name, even in windows
         if font.fullname != None:
@@ -744,11 +785,11 @@ class font_patcher:
             'Powerline': ''
         }
 
+        # FOR SARASA
         projectInfo = (
-            "Patched with '" + projectName + " Patcher' (https://github.com/ryanoasis/nerd-fonts)\n\n"
+            "Patched with 'Sarasa Term TC Nerd Patcher' (https://github.com/cometjc/Sarasa-Term-TC-Nerd)\n\n"
             "* Website: https://www.nerdfonts.com\n"
             "* Version: " + version + "\n"
-            "* Development Website: https://github.com/ryanoasis/nerd-fonts\n"
             "* Added icons' authors and copyright: https://github.com/ryanoasis/nerd-fonts/blob/-/src/glyphs/README.md"
         )
 
@@ -781,6 +822,22 @@ class font_patcher:
                 # inject_suffix(family, ps_fontname, short_family)
                 n.inject_suffix(verboseAdditionalFontNameSuffix, ps_suffix, short_family)
             n.rename_font(font)
+
+        # FOR SARASA
+        font.familyname = looseName
+        subFamily = self.get_subfamily()
+        font.fullname = f"{looseName} {en_subfamily(subFamily)}"
+        font.fontname = f"{compactName}-{subFamily}"
+        uniqueID = f"{font.fullname}; Sarasa v{self.sourceFont.version}"
+
+        font.appendSFNTName(str("English (US)"), str("UniqueID"), uniqueID)
+        font.appendSFNTName(str('English (US)'), str('Fullname'), font.fullname)
+
+        font.appendSFNTName(str('English (US)'), str('Family'), font.familyname)
+        font.appendSFNTName(str('English (US)'), str('SubFamily'), en_subfamily(subFamily))
+
+        font.appendSFNTName(str('English (US)'), str('Preferred Family'), font.familyname)
+        font.appendSFNTName(str('English (US)'), str('Preferred Styles'), en_subfamily(subFamily))
 
         font.comment = projectInfo
         font.fontlog = projectInfo
@@ -1193,7 +1250,15 @@ class font_patcher:
             {'Enabled': self.args.powersymbols,         'Name': "Power Symbols",           'Filename': "Unicode_IEC_symbol_font.otf",                    'Exact': True,  'SymStart': 0x23FB, 'SymEnd': 0x23FE, 'SrcStart': None,   'ScaleRules': None,             'Attributes': SYM_ATTR_DEFAULT},  # Power, Power On/Off, Power On, Sleep
             {'Enabled': self.args.powersymbols,         'Name': "Power Symbols",           'Filename': "Unicode_IEC_symbol_font.otf",                    'Exact': True,  'SymStart': 0x2B58, 'SymEnd': 0x2B58, 'SrcStart': None,   'ScaleRules': None,             'Attributes': SYM_ATTR_DEFAULT},  # Heavy Circle (aka Power Off)
             {'Enabled': False             ,             'Name': "Material legacy",         'Filename': "materialdesign/materialdesignicons-webfont.ttf", 'Exact': False, 'SymStart': 0xF001, 'SymEnd': 0xF847, 'SrcStart': 0xF500, 'ScaleRules': None,             'Attributes': SYM_ATTR_DEFAULT},
-            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0001,'SymEnd': 0xF1AF0,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            # FOR SARASA
+            # {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0001,'SymEnd': 0xF1AF0,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0001,'SymEnd': 0xF0553,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0565,'SymEnd': 0xF0E32,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0E40,'SymEnd': 0xF0E85,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF0E8E,'SymEnd': 0xF118E,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF119E,'SymEnd': 0xF11AE,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF14B0,'SymEnd': 0xF14CF,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
+            {'Enabled': self.args.material,             'Name': "Material",                'Filename': "materialdesign/MaterialDesignIconsDesktop.ttf",  'Exact': True,  'SymStart': 0xF19E8,'SymEnd': 0xF19FD,'SrcStart': None,   'ScaleRules': MDI_SCALE_LIST,   'Attributes': SYM_ATTR_DEFAULT},
             {'Enabled': self.args.weather,              'Name': "Weather Icons",           'Filename': "weather-icons/weathericons-regular-webfont.ttf", 'Exact': False, 'SymStart': 0xF000, 'SymEnd': 0xF0EB, 'SrcStart': 0xE300, 'ScaleRules': WEATH_SCALE_LIST, 'Attributes': SYM_ATTR_DEFAULT},
             {'Enabled': self.args.fontlogos,            'Name': "Font Logos",              'Filename': "font-logos.ttf",                                 'Exact': True,  'SymStart': 0xF300, 'SymEnd': 0xF381, 'SrcStart': None,   'ScaleRules': None,             'Attributes': SYM_ATTR_DEFAULT},
             {'Enabled': self.args.octicons,             'Name': "Octicons",                'Filename': "octicons/octicons.otf",                          'Exact': False, 'SymStart': 0xF000, 'SymEnd': 0xF105, 'SrcStart': 0xF400, 'ScaleRules': OCTI_SCALE_LIST,  'Attributes': SYM_ATTR_DEFAULT},  # Magnifying glass
@@ -1307,6 +1372,10 @@ class font_patcher:
         # print("FINI hhea {} typo {} win {} use {}     {}      {}".format(hhea_btb, typo_btb, win_btb, use_typo, our_btb != hhea_btb, self.sourceFont.fontname))
 
         self.font_dim = {'xmin': 0, 'ymin': 0, 'xmax': 0, 'ymax': 0, 'width' : 0, 'height': 0, 'iconheight': 0, 'ypadding': 0}
+
+        # FOR SARASA
+        self.font_dim = {'xmin': 0, 'ymin': 0, 'xmax': 0, 'ymax': 0, 'width' : 0, 'height': 0, 'iconheight': 0, 'ypadding': 0, 'em': 0}
+        self.font_dim['em'] = self.sourceFont.em
 
         if metrics == Metric.HHEA:
             self.font_dim['ymin'] = self.sourceFont.hhea_descent - half_gap(self.sourceFont.hhea_linegap, False)
@@ -1446,9 +1515,12 @@ class font_patcher:
         """ Get the target width (1 or 2 'cell') for a given stretch parameter """
         # For monospaced fonts all chars need to be maximum 'one' space wide
         # other fonts allows double width glyphs for 'pa' or if requested with '2'
-        if self.args.single or ('pa' not in stretch and '2' not in stretch) or '1' in stretch:
-            return 1
-        return 2
+        # FOR SARASA
+        return 1
+
+        # if self.args.single or ('pa' not in stretch and '2' not in stretch) or '1' in stretch:
+        #     return 1
+        # return 2
 
     def get_scale_factors(self, sym_dim, stretch, overlap=None):
         """ Get scale in x and y as tuple """
@@ -1905,6 +1977,11 @@ class font_patcher:
         ymax = self.font_dim["ymax"]
         ymin = self.font_dim["ymin"]
         return get_braille_font(self.sourceFont.em, width, ymax, ymin, self.args.braille, 0.6)
+
+    # FOR SARASA: extract subFamily from font name
+    def get_subfamily(self):
+        file_name = os.path.splitext(os.path.basename(self.args.font))[0]
+        return file_name.split('-')[-1]
 
 def half_gap(gap, top):
     """ Divides integer value into two new integers """
@@ -2367,6 +2444,56 @@ def main():
 
     for f in sourceFonts:
         f.close()
+
+def en_subfamily(compact):
+    return compact.replace("Italic", " Italic").strip()
+
+# FOR SARASA: build hdmx table
+import sys
+import math
+from fontTools.ttLib import TTFont, newTable
+
+def post_fix(src_file, dst_file):
+    dst_font = TTFont(dst_file, recalcBBoxes=False)
+    build_hdmx(dst_font)
+    fix_isFixedPitch(dst_font)
+
+    src_font = TTFont(src_file)
+    dst_font["OS/2"].xAvgCharWidth = src_font["OS/2"].xAvgCharWidth
+    src_font.close()
+
+    dst_font.save(dst_file)
+    dst_font.close()
+
+def build_hdmx(font):
+    headFlagInstructionsMayAlterAdvanceWidth = 0x0010
+    sarasaHintPpemMin = 11
+    sarasaHintPpemMax = 48
+
+    originalFontHead = font["head"]
+    originalFontHmtx = font["hmtx"]
+
+    originalFontHead.flags |= headFlagInstructionsMayAlterAdvanceWidth
+
+    hdmxTable = newTable("hdmx")
+    hdmxTable.hdmx = {}
+
+    # build hdmx table for odd and hinted ppems only.
+    for ppem in range(
+        math.floor(sarasaHintPpemMin / 2) * 2 + 1, sarasaHintPpemMax + 1, 2
+    ):
+        halfUpm = originalFontHead.unitsPerEm / 2
+        halfPpem = math.ceil(ppem / 2)
+        hdmxTable.hdmx[ppem] = {
+            name: math.ceil(width / halfUpm) * halfPpem
+            for name, (width, _) in originalFontHmtx.metrics.items()
+        }
+
+    font["hdmx"] = hdmxTable
+
+def fix_isFixedPitch(font):
+    post = font["post"].__dict__
+    post["isFixedPitch"] = 1
 
 
 if __name__ == "__main__":
